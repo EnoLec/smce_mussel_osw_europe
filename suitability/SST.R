@@ -6,10 +6,9 @@
 # Date: 11/02/2025
 
 # Notes: 
-# 1. Compute the average sst over the 2019-2023 timeseries (No need to run again)
-# 2. Compute the fuzzy score for sst for each year (2019-2023) following Lauzon-Guay et al (2006, DOI: 10.3354/meps323171)
+# 1. Compute the fuzzy score for sst for each year (2019-2023) following Lauzon-Guay et al (2006, DOI: 10.3354/meps323171)
 #    and its average over the timeseries
-# 3. Compute the fuzzy score same way than 2. for Bio-Oracle data on 2010-2020 and 2040-2050 timeseries
+# 2. Compute the fuzzy score same way than 1. for Bio-Oracle data on 2010-2020 and 2040-2050 timeseries
 
 
 # 0. Initialisation ----
@@ -33,7 +32,7 @@ XTmax_exclusion = function(x, y) {    # Takes the same pixels of fT and XTmax
   return(x)
 }
 
-# Compute fuzzy score ----
+# 1. Compute fuzzy score ----
 SST_files <- list.files(pattern = "^SST_20") # List sst files in folder
 
 file_groups <- split(SST_files, cut(seq_along(SST_files), 5, labels = FALSE)) # Split the files into 5 groups for the 5 years
@@ -63,7 +62,7 @@ for(i in 1:length(file_groups)){            # To loop through each year
   XTmax[XTmax != 0]  <- 1      # If XTmax != 0 -> the threshold is crossed
   
   # When XTmax == 1, that means that the threshold of T_max was crossed for that day -> the fT value is probably already very low, 
-  # but need to be absolute 0 to respect Lauzon-Guay's second part of the model (lower part of Equation 2)
+  # but need to be absolute 0 to respect Lauzon-Guay's second part of the model.
   
   sst_score <- c()                   # Generate an empty score object
   for (j in 1:nlayers(SST_daily)){   # Loop through each day
@@ -80,19 +79,17 @@ for(i in 1:length(file_groups)){            # To loop through each year
 
 }
 
-
-
 sst_fuzzy <- stack(sst_fuzzy)     # stack sst_fuzzy
-writeRaster(sst_fuzzy,"Thresholds/SST/SST_2019-2023_fuzzy.tif", overwrite=T)
+writeRaster(sst_fuzzy,"SST_2019-2023_fuzzy.tif", overwrite=T)
 
 
-# 3. Bio-oracle timeseries ----
+# 2. Bio-oracle timeseries ----
 ## 2010-2020 ----
 SST <- raster("Bio-oracle_2010-2020_meanSST_clip.tif") 
 e <- as(extent(-12, 34, 33, 73), 'SpatialPolygons')
 SST <-crop(SST,e)
 
-
+# Fit the model
 A <- (T_max-SST)/(T_max-T_opt)
 B <- c*(T_max-T_opt)
 C <- exp(c*(SST-T_opt))
@@ -104,8 +101,7 @@ XTmax[XTmax != 0]  <- 1
 sst_score <- c()
 sst_score <- overlay(fT, XTmax, fun=XTmax_exclusion)
 
-
-writeRaster(sst_score,"Thresholds/SST/SST_2010-2020_fuzzy.tif", overwrite=T)
+writeRaster(sst_score,"SST_2010-2020_fuzzy.tif", overwrite=T)
 
 
 ## 2040-2050 ----
@@ -113,7 +109,7 @@ SST <- raster("Bio-oracle_SSP85_2040-2050_meanSST.nc")
 e <- as(extent(-12, 34, 33, 73), 'SpatialPolygons')
 SST <-crop(SST,e)
 
-
+# Fit the model
 A <- (T_max-SST)/(T_max-T_opt)
 B <- c*(T_max-T_opt)
 C <- exp(c*(SST-T_opt))
@@ -125,19 +121,4 @@ XTmax[XTmax != 0]  <- 1
 sst_score <- c()
 sst_score <- overlay(fT, XTmax, fun=XTmax_exclusion)
 
-writeRaster(sst_score,"Thresholds/SST/SST_2040-2050_fuzzy.tif", overwrite=T)
-
-
-# Bio-oracle mean sst anomalies ----
-SSP <- raster("Bio-oracle_SSP85_2040-2050_meanSST.nc") 
-
-average_ref <- raster("Bio-oracle_2010-2020_meanSST.nc")
-
-SSP_change <- SSP-average_ref
-plot(SSP_change)
-
-
-writeRaster(SSP_change,"Bio-oracle_sst_anomalies.tif", overwrite=T)
-
-
-
+writeRaster(sst_score,"SST/SST_2040-2050_fuzzy.tif", overwrite=T)
