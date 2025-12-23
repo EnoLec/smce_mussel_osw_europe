@@ -6,12 +6,11 @@
 # Date: 11/02/2025
 
 # Notes: 
-# 1. Compute the average chl over the 2019-2023 timeseries (No need to run if not needed)
-# 2. Compute the fuzzy score for CHL for each year (2019-2023) following Filgueira et al (2011, DOI: 110.1016/j.seares.2011.04.006)
-#    See Excel file Models_for_thresholds for mathematical function (functional response)
-#    Also, this script averages the fuzzy score over the 5-year timeseries
+# Compute the fuzzy score for CHL for each year (2019-2023) following Filgueira et al (2011, DOI: 110.1016/j.seares.2011.04.006)
+# See Excel file Models_for_thresholds for mathematical function (functional response)
+# Also, this script averages the fuzzy score over the 5-year timeseries
 
-# 0. Initialisation ----
+# Initialisation ----
 library(raster)
 library(sp)
 library(sf)
@@ -20,23 +19,7 @@ library(terra)
 
 setwd("C:/Users/my/path/")
 
-
-# 1. Average chl 2019-2023----
-# CHL_files <- list.files(pattern = "^CHL_20") 
-# 
-# CHL_files <- lapply(CHL_files, function(filename) {
-#   raster::brick(filename, varname = "CHL") # Open the data and convert kelvin in Celsius
-# })
-# 
-# CHL_stack <- stack(CHL_files)
-# 
-# temp <- mean(CHL_stack,  na.rm=TRUE)
-# temp <- mask(temp, coastline, inverse=TRUE)
-# 
-# writeRaster(temp,"CHL_averaged_2019-2023.tif", overwrite=T)
-
-
-# 2. Compute fuzzy score ----
+# Compute fuzzy score ----
 # List CHL files in folder
 CHL_files <- list.files(pattern = "^CHL_20") 
 
@@ -72,4 +55,5 @@ for(i in 1:length(file_groups)){
 
 chl_fuzzy <- stack(chl_fuzzy) 
 writeRaster(chl_fuzzy,"CHL_2019-2023_fuzzy.tif", overwrite=T)
+
 
