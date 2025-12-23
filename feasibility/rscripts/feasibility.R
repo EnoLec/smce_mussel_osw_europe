@@ -171,6 +171,39 @@ save(heat_spike_f, file="heat_spike_feasibility.RData")
 
 
 
+# Create feasibility mask ----
+## Load feasible masks ----
+load(file="heat_spike_feasibility.RData")    #heat_spike_f
+load(file="bathy_feasibility.RData")         #bathy_f
+load(file="current_feasibility.RData")       #current_f
+
+# Check their resolution and extent, it's unlikely they have the same
+res(heat_spike_f)
+res(bathy_f)
+res(current_f)
+
+extent(heat_spike_f)
+extent(bathy_f)
+extent(current_f)
+
+# Here, we want to use heat spike resolution
+# Reascale the other masks on the heat spike mask
+bathy_f <- resample(bathy_f,heat_spike_f, method="ngb")
+current_f <- resample(current_f,heat_spike_f,method="ngb")
+
+# Stack them up
+maskstack <- stack(heat_spike_f,bathy_f,current_f)
+
+# Sum them up. If the result of a pixel is 3 (or alternatively the number of masks you used), that mean this pixel can be considered 'feasible'
+maskstacksum <- sum(maskstack)
+
+maskstacksum[maskstacksum < dim(maskstack)[3]] <- 0    # 0 if non-feasible
+maskstacksum[maskstacksum == dim(maskstack)[3]] <- 1   # 1 if 'feasible'
+plot(maskstacksum)
+
+writeRaster(maskstacksum, filename="feasibility_mask.tif", format="GTiff", overwrite=TRUE)
+
+
 #%%%% Addtional Criteria %%%%%%
 
 
@@ -323,43 +356,6 @@ waves_stack_mean <- mean(waves_stack, na.rm=TRUE)
 writeRaster(waves_stack_mean, filename="accessibility.tiff", format="GTiff", overwrite=TRUE)
 
 
-# Create feasibility mask ----
-## Load feasible masks ----
-load(file="MCE/feasibility/heat_spike_feasibility.RData") #heat_spike_f
-load(file="MCE/feasibility/bathy_feasibility.RData") #bathy_f
-load(file="MCE/feasibility/current_feasibility.RData") #current_f
-#load(file="MCE/feasibility/significant_wave_feasibility.RData") #waves_f
-
-res(heat_spike_f)
-res(bathy_f)
-res(current_f)
-#res(waves_f)
-
-extent(heat_spike_f)
-extent(bathy_f)
-extent(current_f)
-
-
-bathy_f <- resample(bathy_f,heat_spike_f, method="ngb")
-
-current_f <- resample(current_f,heat_spike_f,method="ngb")
-
-
-
-
-test <- stack(heat_spike_f,bathy_f,current_f)
-plot(test)
-
-testsum <- sum(test)
-testmsk <- testsum
-
-testmsk[testmsk < dim(test)[3]] <- 0
-testmsk[testmsk == dim(test)[3]] <- 1
-plot(testmsk)
-
-
-
-writeRaster(testmsk, filename="MCE/feasibility/feasibility_mask.tif", format="GTiff", overwrite=TRUE)
 
 
 
