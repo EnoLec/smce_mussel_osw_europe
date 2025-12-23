@@ -41,7 +41,7 @@ extreme_current <- function(values, threshold, num_layers) {
 }
 
 
-## Load uo (nothward) and vo (eastward) vectors ---
+## Load uo (Eastward) and vo (Northward) vectors ---
 uo <- raster::brick("cmems_mod_glo_phy-all_my_0.25deg_P1D-m_uo-vo_2019-2023.nc", varname = "uo_oras")
 vo <- raster::brick("cmems_mod_glo_phy-all_my_0.25deg_P1D-m_uo-vo_2019-2023.nc", varname = "vo_oras")
 
@@ -354,6 +354,7 @@ for(i in 1:length(file_groups)){
 waves_stack_mean <- mean(waves_stack, na.rm=TRUE)
 
 writeRaster(waves_stack_mean, filename="accessibility.tiff", format="GTiff", overwrite=TRUE)
+
 
 
 
