@@ -6,16 +6,15 @@
 # Date: 11/02/2025
 
 # Notes: 
-# 1. Compute the average sss over the 2019-2023 timeseries (No need to run again)
-# 2. Compute the fuzzy score for sss for each year (2019-2023) following Maar et al (2015) and MMO (2019) data. 
-#    See Excel file Models_for_thresholds for mathematical function
-#    Also, this script averages the fuzzy score over the timeseries
+# Compute the fuzzy score for sss for each year (2019-2023) following Maar et al (2015)* and MMO (2019)** data. 
+# See Excel file Models_for_thresholds for mathematical function
+# Also, this script averages the fuzzy score over the timeseries
 
-# Maar et al 2015 - DOI: 10.1016/j.jmarsys.2015.02.003
-# MMO 2019 - URL: https://assets.publishing.service.gov.uk/media/5dfb8f9840f0b6665e801834/MMO1184_AquaPotential_forPub_191210.pdf
+# *Maar et al 2015 - DOI: 10.1016/j.jmarsys.2015.02.003
+# **MMO 2019 - URL: https://assets.publishing.service.gov.uk/media/5dfb8f9840f0b6665e801834/MMO1184_AquaPotential_forPub_191210.pdf
 
 
-# 0. Initialisation ----
+# Initialisation ----
 library(raster)
 library(sp)
 library(sf)
@@ -24,30 +23,7 @@ library(terra)
 
 setwd("C:/Users/my/path/")
 
-
-# 1. Average sss 2019-2023 ----
-## DO NOT RUN AGAIN ##
-# SSS_files <- list.files(pattern = "^SSS_20") # "^SSS_20" because we don't want the "SSS_monthly_201901-202312.nc" file generated in the folder with this script
-# 
-# SSS_001_031 <- SSS_files[1:4] # Read every .nc as brick file
-# 
-# SSS_files_001_031 <- lapply(SSS_001_031, function(filename) {
-#   raster::brick(filename, varname = "so_cglo") # Open the data and convert kelvin in Celsius
-# })
-# 
-# SSS_001_031 <- stack(SSS_files_001_031)
-# 
-# SSS_001_024 <- brick(SSS_files[5], varname = "so")
-# 
-# SSS_001_024 <- resample(SSS_001_024,SSS_001_031)
-# 
-# # Stack the bricks together to get only one file
-# SSS_stack <- stack(SSS_001_031,SSS_001_024)
-# temp <- mean(SSS_stack,  na.rm=TRUE)
-# 
-# writeRaster(temp,"SSS_averaged_2019-2023.tif", overwrite=T)
-
-# 2. Compute fuzzy score ----
+# Compute fuzzy score ----
 SSS_files <- list.files(pattern = "^SSS_20") # List sss files in folder
 
 resampler <- raster("SSS_2019.nc") # Load only the first layer of SSS_2019 to resample 2023 on a 0.25 resolution (currently 0.08)
@@ -81,7 +57,4 @@ for(i in 1:length(SSS_files)){
 }
 
 sss_fuzzy <- stack(sss_fuzzy)     
-writeRaster(sss_fuzzy,"Thresholds/SSS/SSS_2019-2023_fuzzy.tif", overwrite=T)
-
-
-
+writeRaster(sss_fuzzy,"SSS_2019-2023_fuzzy.tif", overwrite=T)
