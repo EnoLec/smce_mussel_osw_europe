@@ -6,12 +6,11 @@
 # Date: 11/02/2025
 
 # Notes: 
-# 1. Compute the average spm over the 2019-2023 timeseries (No need to run if not needed)
-# 2. Compute the fuzzy score for spm for each year (2019-2023) following Kiorboe et al (1980, DOI: 10.1080/00785326.1980.10425516). 
-#    See Excel file Models_for_thresholds for mathematical function
-#    Also, this script averages the fuzzy score over the timeseries
+# Compute the fuzzy score for spm for each year (2019-2023) following Kiorboe et al (1980, DOI: 10.1080/00785326.1980.10425516). 
+# See Excel file Models_for_thresholds for mathematical function
+# Also, this script averages the fuzzy score over the timeseries
 
-# 0. Initialisation ####
+# Initialisation ####
 library(raster)
 library(sp)
 library(sf)
@@ -20,26 +19,7 @@ library(terra)
 
 setwd("C:/my/path/")
 
-
-# 1. Average spm 2019-2023 ----
-## DO NOT RUN AGAIN ## Especially if not needed, as this can take a while. It is mainly there for mapping purpose if you need a average SPM raster to present your study site
-# coastline <- read_sf("C:/Users/enora/OneDrive - hull.ac.uk/001_Enora_PhD/Data/Suitable_WF_GIS_study/MCE/GIS/Europe_coastline_shapefile/Europe_coastline_poly_4326.shp")
-# SPM_files <- c("SPM_2019.nc","SPM_2020.nc","SPM_2021.nc","SPM_2022.nc","SPM_2023.nc")
-# 
-# # Read every .nc as brick file
-# SPM_stack_list <- lapply(SPM_files, function(filename) {
-#   raster::brick(filename, varname = "SPM")
-# })
-# 
-# SPM_stack <- stack(SPM_stack_list) # Stack the bricks together to get only one file
-# 
-# temp <- mean(SPM_stack,  na.rm=TRUE)
-# temp <- mask(temp, coastline, inverse=TRUE)
-# 
-# writeRaster(temp,"SPM_averaged_2019-2023.tif", overwrite=T)
-
-
-# 2. Compute fuzzy score ----
+# Compute fuzzy score ----
 SPM_files <- list.files(pattern = "^SPM_20") # List spm files in folder
 
 spm_fuzzy <- c()                          # Generate result file
@@ -67,4 +47,5 @@ for(i in 1:length(SPM_files)){            # To loop through each year
 spm_fuzzy <- stack(spm_fuzzy)
 
 writeRaster(spm_fuzzy,"SPM_2019-2023_fuzzy.tif", overwrite=T)
+
 
