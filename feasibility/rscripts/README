@@ -3,6 +3,7 @@ current_feasiblity.RData
 heat_spike_feasibility.RData
 max_waves.tif
 accessibility.tif
+feasiblity_mask.tif
 
 are example of feasibility.R outputs used in the paper
 
