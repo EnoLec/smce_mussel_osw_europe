@@ -1,33 +1,32 @@
-#%%%%%%%%%%%%%%%%%%%%%%%%%%%
-#%%%% Feasibility area %%%%%
-#%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#%%%% Feasibility analysis %%%%%
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 library(sf)
 library(raster)
 
 
-setwd("C:/Users/enora/OneDrive - hull.ac.uk/001_Enora_PhD/Data/Suitable_WF_GIS_study")
+setwd("C:/Users/my/path")
 
 # Objectives: end up with a raster of 0 (not feasible) or 1 (feasible) for growing M. edulis
 #   The output file could be a shapefile of feasible  areas too
 
 
 # Bathymetry -----
-# Bathy needs to be between 5 and 100 m
-bathy <- raster("MCE/GIS/GEBCO_European_elevation/GEBCO_euro_bathy.tif")
+# Thresholds chosen for the bathymetry is 5 to 100 m
+bathy <- raster("bathymmetry.tif")
 
-bathy_f <- bathy
-plot(bathy_f)
+bathy_f <- bathy # create a bathy_feasible object
+#plot(bathy_f)
 
-bathy_f[bathy_f < -100] <- NA
-bathy_f[bathy_f > -5] <- NA
+bathy_f[bathy_f < -100] <- NA # NA to every pixels deeper than 100 m
+bathy_f[bathy_f > -5] <- NA # NA to every pixels above 5 m in depth
 
-bathy_f[!is.na(bathy_f)] <- 1
-bathy_f[is.na(bathy_f)] <- 0
+bathy_f[!is.na(bathy_f)] <- 1 # 1 to pixels we keep
+bathy_f[is.na(bathy_f)] <- 0 # 0 to pixels we mask out
 
-
-save(bathy_f, file="MCE/feasibility/bathy_feasibility.RData")
-#writeRaster(bathy_f, filename="MCE/feasibility/bathy_mask.tif", format="GTiff", overwrite=TRUE)
+save(bathy_f, file="bathy_feasibility.RData")
+#writeRaster(bathy_f, filename="bathy_mask.tif", format="GTiff", overwrite=TRUE)
 
 
 # Current speed -----
@@ -353,6 +352,7 @@ plot(testmsk)
 
 
 writeRaster(testmsk, filename="MCE/feasibility/feasibility_mask.tif", format="GTiff", overwrite=TRUE)
+
 
 
 
