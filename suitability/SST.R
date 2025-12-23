@@ -7,11 +7,10 @@
 
 # Notes: 
 # 1. Compute the average sst over the 2019-2023 timeseries (No need to run again)
-# 2. Compute the fuzzy score for sst for each year (2019-2023) following Lauzon-Guay et al (2006, Equation 2)
+# 2. Compute the fuzzy score for sst for each year (2019-2023) following Lauzon-Guay et al (2006, DOI: 10.3354/meps323171)
 #    and its average over the timeseries
 # 3. Compute the fuzzy score same way than 2. for Bio-Oracle data on 2010-2020 and 2040-2050 timeseries
 
-# Lauzon-Guay et al 2006 - DOI: 10.3354/meps323171
 
 # 0. Initialisation ----
 library(raster)
@@ -20,7 +19,7 @@ library(sf)
 library(ncdf4)
 library(terra)
 
-setwd("C:/Users/enora/OneDrive - hull.ac.uk/001_Enora_PhD/Data/Suitable_WF_GIS_study/MCE/CMEMS_data/")
+setwd("C:/my/path/")
 
 # Variables from Lauzon-Guay et al (2006)
 T_max <- 30     # Upper temperature at which growth stops
@@ -155,4 +154,5 @@ plot(SSP_change)
 
 
 writeRaster(SSP_change,"Bio-oracle_sst_anomalies.tif", overwrite=T)
+
 
