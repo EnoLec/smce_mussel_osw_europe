@@ -252,19 +252,22 @@ writeRaster(waves_stack_sum, filename="max_waves.tif", format="GTiff", overwrite
 
 
 # Significant wave height -----
-# Function to calculate the percentage of values below the threshold for each pixel
+# Here we want to compute an "Accessibility" metric: relative time a site (pixel) is accessible. This means that we will compute over the tiome serie, when the piwel present a wave height below the threshold
+# In the end, an Accessibility of 100% means that the site is always accesible (no rough sea), 0% means the site is never accesible as the sea is too rough (significant wave height always above max threshold).
+
+# Function to calculate the percentage of values below the threshold for each pixel throughout the time serie
 accessibility_time <- function(values, threshold, num_layers) {
   # Count the number of values below the threshold
   count_below_threshold <- sum(values < threshold, na.rm = TRUE)
   # Calculate the percentage
-  percentage_below_threshold <- (count_below_threshold / num_layers) * 100
+  percentage_below_threshold <- (count_below_threshold / num_layers) * 100 # Here 'layers' mean time steps (hours across the time serie)
   return(percentage_below_threshold)
 }
 
-
+# List the waves data files in the folder
 waves_files <- list.files(path="MCE/CMEMS_data", pattern = "^waves_20")
 
-# Patterns to split files into group
+# Patterns to split files into yearly groups
 patterns <- c("waves_2019", "waves_2020", "waves_2021", "waves_2022", "waves_2023")
 
 # Function to group raster names based on pattern
@@ -276,39 +279,34 @@ group_rasters <- function(pattern, raster_names) {
 file_groups <- lapply(patterns, group_rasters, waves_files)
 
 
-# LOad only the first layer of waves_2019 to resample 2022 and 2023 on a 0.2 resolution (currently 0.08)
+# Load only the first layer of waves_2019 to resample 2022 and 2023 on a 0.2 resolution (currently 0.08)
 resampler <- raster("MCE/CMEMS_data/waves_2019.nc")
 ext_resampler <- extent(resampler)
 
-
+# Create our threshold
 Hs_max <- 1.5
-
 wave_stack <- c()
 
 for(i in 1:length(file_groups)){
- 
+  
   print(paste0(i," out of ",length(file_groups)))
  
-   # Open SST files per year
+   # Open files per year
   Hs_hourly <- lapply(file_groups[[i]], function(filename) {
     raster::brick(paste0("MCE/CMEMS_data/", filename))
   })
   
-  Hs_hourly <- stack(Hs_hourly) # 1 stack of the year's daily data
+  Hs_hourly <- stack(Hs_hourly) # 1 stack of the year's hourly data
 
-  
-  # Resample if needed (2023 only)
+  # Resample if needed
   if(extent(Hs_hourly) != ext_resampler){
    Hs_hourly <- resample(Hs_hourly,resampler)
   }
 
-
   # Compute the % when Hs < Hs_max
   r <- accessibility_time(Hs_hourly, Hs_max, dim(Hs_hourly)[[3]])
   
-  ## Yearly average
   names(r) <- substr(file_groups[i][[1]][1], 7, 10)
-  
   
   # Loop to store output raster in a raster stack
   if(i==1){
@@ -316,17 +314,13 @@ for(i in 1:length(file_groups)){
   } else{
     waves_stack <- stack(waves_stack, r)
   }
-  
-  
+   
 }
 
-
+# Compute the mean of each year's Accessibility
 waves_stack_mean <- mean(waves_stack, na.rm=TRUE)
 
-
-
-#save(waves_f, file="MCE/feasibility/significant_wave_feasibility.RData")
-writeRaster(waves_stack_mean, filename="MCE/CMEMS_data/Thresholds/Hs/accessibility.tiff", format="GTiff", overwrite=TRUE)
+writeRaster(waves_stack_mean, filename="accessibility.tiff", format="GTiff", overwrite=TRUE)
 
 
 # Create feasibility mask ----
@@ -366,6 +360,7 @@ plot(testmsk)
 
 
 writeRaster(testmsk, filename="MCE/feasibility/feasibility_mask.tif", format="GTiff", overwrite=TRUE)
+
 
 
 
