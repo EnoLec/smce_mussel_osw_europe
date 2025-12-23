@@ -4,13 +4,14 @@
 
 library(sf)
 library(raster)
-
+library(ncdf4)
 
 setwd("C:/Users/my/path")
 
 # Objectives: end up with a raster of 0 (not feasible) or 1 (feasible) for growing M. edulis
 #   The output file could be a shapefile of feasible  areas too
 
+#%%%% Main Criteria %%%%%%
 
 # Bathymetry -----
 # Thresholds chosen for the bathymetry is 5 to 100 m
@@ -30,39 +31,148 @@ save(bathy_f, file="bathy_feasibility.RData")
 
 
 # Current speed -----
-# if current speed reaches 1.5 m/s we drop this location
+# Thresholds chosen for the current speed is 1 m/s
+
+# Function to count how many time current sped is above threshold
+# This is kind of overkill as we will mask out every pixel where the threshold is crossed at least once, but it's an interesting info to keep in mind 
 extreme_current <- function(values, threshold, num_layers) {
-  # Count the number of values above the threshold
   count_extreme_current <- sum(values >= threshold, na.rm = TRUE)
   return(count_extreme_current)
 }
 
-## Load uo and vo ---
-uo <- raster::brick("MCE/CMEMS_data/cmems_mod_glo_phy-all_my_0.25deg_P1D-m_uo-vo_2019-2023.nc", varname = "uo_oras")
-vo <- raster::brick("MCE/CMEMS_data/cmems_mod_glo_phy-all_my_0.25deg_P1D-m_uo-vo_2019-2023.nc", varname = "vo_oras")
 
+## Load uo (nothward) and vo (eastward) vectors ---
+uo <- raster::brick("cmems_mod_glo_phy-all_my_0.25deg_P1D-m_uo-vo_2019-2023.nc", varname = "uo_oras")
+vo <- raster::brick("cmems_mod_glo_phy-all_my_0.25deg_P1D-m_uo-vo_2019-2023.nc", varname = "vo_oras")
 
 ## Compute current speed ---
 current_speed <- sqrt(uo^2 + vo^2)
 
+# Free some space if needed
+# rm(uo, vo)
 
-# Free some space
-rm(uo, vo)
-
-# Compute the how many time the maximum current speed is exceeded
+# Create our threshold
 speed_max <- 1
-r <- extreme_current(current_speed, speed_max, dim(current_speed)[[3]])
-r
-plot(r)
 
+# Count how many times the threshold is crossed for each pixel
+r <- extreme_current(current_speed, speed_max, dim(current_speed)[[3]])
+# plot(r)
+
+# Create a current speed feasible object
 current_f <- r
-current_f[current_f>=1] <- -666
-current_f[current_f==0] <- 1
-current_f[current_f==-666] <- 0
+
+current_f[current_f>=1] <- -666    # Extreme negative value when the threshold is crossed  
+current_f[current_f==0] <- 1       # 1 where the threshold has neven been crossed
+current_f[current_f==-666] <- 0    # 0 where the threshold was crossed at least once
 plot(current_f)
 
-save(current_f, file="MCE/feasibility/current_feasibility.RData")
-#writeRaster(current_f, filename="MCE/feasibility/current_speed_mask.tif", format="GTiff", overwrite=TRUE)
+save(current_f, file="current_feasibility.RData")
+#writeRaster(current_f, filename="current_speed_mask.tif", format="GTiff", overwrite=TRUE)
+
+
+# Heat spike -----
+# This function counts the total number of days within sequences of at least three consecutive days above Tmax (25°C in our case)
+heat_spike_count <- function(arr, Tmax) {
+  n_layers <- dim(arr)[3]  # Get the number of days we have to got through
+  
+  # Create an array to store the count of consecutive days
+  count <- array(0, dim = dim(arr)[1:2])  # Initialise count to 0
+  
+  # Loop through each pixel
+  for (i in 1:dim(arr)[1]) {
+    for (j in 1:dim(arr)[2]) {
+      consecutive_days <- 0  # Initialise the consecutive days counter
+      
+      for (k in 1:n_layers) {
+        # If the pixel is above Tmax we increment consecutive_days by 1
+        if (!is.na(arr[i, j, k]) && arr[i, j, k] >= Tmax){
+          consecutive_days <- consecutive_days + 1  
+        } else {
+          # If the pixel is below the Tmax, we look at the consecutive_days value: 
+          if (consecutive_days >= 3) { # If consecutive_days >= 3, that means at least the previous 3 days can be considered as a heat spike. We add all those days to the count. If not, we do nothing.
+            count[i, j] <- count[i, j] + consecutive_days
+          }
+          consecutive_days <- 0  # Then, we reset the counter to 0
+        }
+      }
+      
+      # Final check after loop in case the sequence ends at the last day
+      if (consecutive_days >= 3) {
+        count[i, j] <- count[i, j] + consecutive_days
+      }
+    }
+  }
+  
+  
+  return(count = count)
+}
+
+# # Example array with the given temperatures for one pixel
+# arr <- array(c(20, 22, 23, 25, NA, 20, 27, 28, 29, 21, 30, 31, 30, 29, 25, 24, 19, 15, 14, 14), dim = c(1, 1, 20))
+# Tmax <- 24
+# 
+# result <- heat_spike_count(arr, Tmax)
+# print(result)
+
+# Set a maximum temperature for heat spikes
+Tmax <- 25 
+
+# List all SST files in your folder. In my case, I had one file per year (otherwise the files were too big for a 5-year time serie)
+SST_files <- list.files(path="my/path", pattern = "^SST_20") 
+
+# Group the files per year (5 years in total)
+file_groups <- split(SST_files, cut(seq_along(SST_files), 5, labels = FALSE)) 
+
+heat_spike_stack <- c()
+for(i in 1:length(file_groups)){
+  
+  print(paste0(i," out of ",length(file_groups))) # To keep track of what your code is up to
+  
+  # Open SST files per year
+  SST_daily <- lapply(file_groups[[i]], function(filename) {
+    raster::brick(paste0("my/path/", filename), varname = "analysed_sst")-272.15 # Open the data and convert kelvin in Celsius
+  })
+  
+  SST_daily <- stack(SST_daily)                          # 1 stack of the year's daily data
+  r <- SST_daily@layers[[1]]                             # Need a raster file with the right dimension to overwrite with the count of heat spikes
+  brick_array <- as.array(SST_daily)                     # Convert raster brick to an array for applying the function
+  above_threshold <- heat_spike_count(brick_array, Tmax) # Count how many time 3 consecutive days are above 25 degrees
+  values(r) <- above_threshold                           # overwrite the raster with the count of heat spikes for the year
+  names(r) <- substr(names(r), 2, 5)                     # overwrite the name with the year
+  
+  # Loop to store output raster in a raster stack
+  if(i==1){
+    heat_spike_stack <- r
+  } else{
+    heat_spike_stack <- stack(heat_spike_stack, r)
+  }
+  
+}
+
+# Create a raster stack with your heat spike counts
+heat_spike_stack_count <- heat_spike_stack
+plot(heat_spike_stack_count)
+
+heat_spike_stack_count[heat_spike_stack_count != 0] <- 1     # 1 to keep pixels without any heat spike within the 5-year time serie
+heat_spike_stack_count[heat_spike_stack_count == 0] <- 0     # 0 to mask out pixels with heat spike(s) within the 5-year time serie
+heat_spike_stack_count <- sum(heat_spike_stack_count)        # count your heat spikes
+plot(heat_spike_stack_count)
+
+# Create a heat spike feasibility mask
+heat_spike_f <- heat_spike_stack_count
+
+heat_spike_f[heat_spike_f != 0] <- 1000    # Extreme value where heat spikes occurred 
+heat_spike_f[heat_spike_f == 0] <- 1       # 1 when we keep piwels ithout heat spikes
+heat_spike_f[heat_spike_f == 1000] <- 0    # 0 when we mask out pixels with heat spikes
+plot(heat_spike_f)
+
+save(heat_spike_f, file="heat_spike_feasibility.RData")
+#writeRaster(heat_spike_f, filename="heat_spike_mask.tif", format="GTiff", overwrite=TRUE)
+
+
+
+#%%%% Addtional Criteria %%%%%%
+
 
 # Maximum wave height -----
 # Add in supplementary material as it can be an issue only for certain types of aquaculture lines (close to surface). But for
@@ -138,7 +248,6 @@ waves_stack_mean <- sum(waves_stack, na.rm=TRUE)
 waves_stack_mean[waves_stack_mean>=1] <- 1
 
 writeRaster(waves_stack_mean, filename="MCE/CMEMS_data/Thresholds/Hs/max_waves.tif", format="GTiff", overwrite=TRUE)
-
 
 
 
@@ -220,101 +329,6 @@ waves_stack_mean <- mean(waves_stack, na.rm=TRUE)
 writeRaster(waves_stack_mean, filename="MCE/CMEMS_data/Thresholds/Hs/accessibility.tiff", format="GTiff", overwrite=TRUE)
 
 
-# Heat spike -----
-# This function counts the total number of days within sequences of at least three consecutive days above Tmax
-heat_spike_count <- function(arr, Tmax) {
-  n_layers <- dim(arr)[3]  # Get the number of days we have to got through
-  
-  # Create an array to store the count of consecutive days
-  count <- array(0, dim = dim(arr)[1:2])  # Initialize all values to zero
-  
-  # Loop through each pixel
-  for (i in 1:dim(arr)[1]) {
-    for (j in 1:dim(arr)[2]) {
-      consecutive_days <- 0  # Initialize the consecutive days counter
-      
-      for (k in 1:n_layers) {
-        if (!is.na(arr[i, j, k]) && arr[i, j, k] >= Tmax){
-          consecutive_days <- consecutive_days + 1  # If the pixel is above Tmax we increment consecutive_days
-        } else {
-          # If the pixel is below the Tmax, we look at the consecutive_days valu: 
-          if (consecutive_days >= 3) { # I consecutive_days >= 3, that means at least the previous 3 days can be considered as a heat spike. We add all those days to the count
-            count[i, j] <- count[i, j] + consecutive_days
-          }
-          consecutive_days <- 0  # Then, we reset the counter if the value is below the threshold
-        }
-      }
-      
-      # Final check after loop in case the sequence ends at the last day
-      if (consecutive_days >= 3) {
-        count[i, j] <- count[i, j] + consecutive_days
-      }
-    }
-  }
-  
-  
-  return(count = count)
-}
-
-# # Example array with the given temperatures for one pixel
-# arr <- array(c(20, 22, 23, 25, NA, 20, 27, 28, 29, 21, 30, 31, 30, 29, 25, 24, 19, 15, 14, 14), dim = c(1, 1, 20))
-# Tmax <- 24
-# 
-# result <- heat_spike_count(arr, Tmax)
-# print(result)
-
-Tmax <- 25 # Set a maximum temperature fro heat spikes
-
-SST_files <- list.files(path="MCE/CMEMS_data", pattern = "^SST_20") 
-
-
-file_groups <- split(SST_files, cut(seq_along(SST_files), 5, labels = FALSE)) # Group the files per year (5 years in total)
-
-heat_spike_stack <- c()
-for(i in 1:length(file_groups)){
-  
-  print(paste0(i," out of ",length(file_groups)))
-  
-  # Open SST files per year
-  SST_daily <- lapply(file_groups[[i]], function(filename) {
-    raster::brick(paste0("MCE/CMEMS_data/", filename), varname = "analysed_sst")-272.15 # Open the data and convert kelvin in Celsius
-  })
-  
-  SST_daily <- stack(SST_daily)                          # 1 stack of the year's daily data
-  r <- SST_daily@layers[[1]]                             # Need a raster file with the right dimension to overwrite with the count of heat spikes
-  brick_array <- as.array(SST_daily)                     # Convert raster brick to an array for applying the function
-  above_threshold <- heat_spike_count(brick_array, Tmax) # Count how many time 3 consecutive days are above 25 degrees
-  values(r) <- above_threshold                           # overwrite the raster with the count of heat spikes for the year
-  names(r) <- substr(names(r), 2, 5)                     # overwrite the name with the year
-  
-  # Loop to store output raster in a raster stack
-  if(i==1){
-    heat_spike_stack <- r
-  } else{
-    heat_spike_stack <- stack(heat_spike_stack, r)
-  }
-  
-}
-
-
-heat_spike_stack_count <- heat_spike_stack
-plot(heat_spike_stack_count)
-
-heat_spike_stack_count[heat_spike_stack_count != 0] <- 1
-heat_spike_stack_count[heat_spike_stack_count == 0] <- 0
-heat_spike_stack_count <- sum(heat_spike_stack_count)
-plot(heat_spike_stack_count)
-
-heat_spike_f <- heat_spike_stack_count
-heat_spike_f[heat_spike_f != 0] <- 1000
-heat_spike_f[heat_spike_f == 0] <- 1
-heat_spike_f[heat_spike_f == 1000] <- 0
-plot(heat_spike_f)
-
-save(heat_spike_f, file="MCE/feasibility/heat_spike_feasibility.RData")
-#writeRaster(heat_spike_f, filename="MCE/feasibility/heat_spike_mask.tif", format="GTiff", overwrite=TRUE)
-
-
 # Create feasibility mask ----
 ## Load feasible masks ----
 load(file="MCE/feasibility/heat_spike_feasibility.RData") #heat_spike_f
@@ -352,6 +366,7 @@ plot(testmsk)
 
 
 writeRaster(testmsk, filename="MCE/feasibility/feasibility_mask.tif", format="GTiff", overwrite=TRUE)
+
 
 
 
