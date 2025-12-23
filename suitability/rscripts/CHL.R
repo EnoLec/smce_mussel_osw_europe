@@ -53,7 +53,10 @@ for(i in 1:length(file_groups)){
   names(chl_fuzzy[[i]]) <- date   # Name the list object with the year 
 }
 
+# Stack the result to get one suitability score raster per year for each factor
+# In this case chl_fuzzy contains 5 layers: 5 raster of suitablity score, one for each year of the time serie
 chl_fuzzy <- stack(chl_fuzzy) 
 writeRaster(chl_fuzzy,"CHL_2019-2023_fuzzy.tif", overwrite=T)
+
 
 
