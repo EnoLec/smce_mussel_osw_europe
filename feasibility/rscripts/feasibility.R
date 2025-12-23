@@ -117,7 +117,7 @@ heat_spike_count <- function(arr, Tmax) {
 # Set a maximum temperature for heat spikes
 Tmax <- 25 
 
-# List all SST files in your folder. In my case, I had one file per year (otherwise the files were too big for a 5-year time serie)
+# List all SST files in your folder. In my case, I had one file per year (otherwise the files were too big for a 5-year time serie. Later (for max wave height, I'll show you how to do it if you ahve more than one file per year)
 SST_files <- list.files(path="my/path", pattern = "^SST_20") 
 
 # Group the files per year (5 years in total)
@@ -175,16 +175,18 @@ save(heat_spike_f, file="heat_spike_feasibility.RData")
 
 
 # Maximum wave height -----
-# Add in supplementary material as it can be an issue only for certain types of aquaculture lines (close to surface). But for
-# long lines below 5m depth, wave height is not an issue.
-# So not used for feasibility but more as a complementary data for special cases.
+# Add in supplementary material, not used for feasibility mask but more as a complementary data for special cases.
+
+# Count how many times the wave height is above threshold (6 m in our case)
 maximum_waves <- function(values, threshold, num_layers) {
   # Count the number of values above the threshold
   count_max_waves <- sum(values >= threshold, na.rm = TRUE)
   return(count_max_waves)
 }
 
-waves_files <- list.files(path="MCE/CMEMS_data", pattern = "^waves_20")
+# List waves data files in our folder
+waves_files <- list.files(path="my/path", pattern = "^waves_20") 
+# Important note: I have one file per year for 2019, 2020 and 2021. I have 4 files per year for 2022 and 2023 (better satial resolution means bigger files so I had to split them)
 
 # Patterns to split files into group
 patterns <- c("waves_2019", "waves_2020", "waves_2021", "waves_2022", "waves_2023")
@@ -198,39 +200,36 @@ group_rasters <- function(pattern, raster_names) {
 file_groups <- lapply(patterns, group_rasters, waves_files)
 
 
-# LOad only the first layer of waves_2019 to resample 2022 and 2023 on a 0.2 resolution (currently 0.08)
-resampler <- raster("MCE/CMEMS_data/waves_2019.nc")
+# Load only the first layer of waves_2019 to resample 2022 and 2023 on a 0.2 resolution (currently 0.08, this is why hourly data for a year is heavy!)
+resampler <- raster("waves_2019.nc")
 ext_resampler <- extent(resampler)
 
-
+# Create our threshold
 Hs_max <- 6
 
+# Loop through ecah year
 wave_stack <- c()
-
 for(i in 1:length(file_groups)){
   
   print(paste0(i," out of ",length(file_groups)))
   
-  # Open SST files per year
+  # Open a file per year
   Hs_hourly <- lapply(file_groups[[i]], function(filename) {
     raster::brick(paste0("MCE/CMEMS_data/", filename))
   })
   
-  Hs_hourly <- stack(Hs_hourly) # 1 stack of the year's daily data
+  Hs_hourly <- stack(Hs_hourly) # 1 stack of the year's hourly data
   
   
-  # Resample if needed (2023 only)
+  # Resample when needed
   if(extent(Hs_hourly) != ext_resampler){
     Hs_hourly <- resample(Hs_hourly,resampler)
   }
-  
-  
+
   # Compute the number of times max wave height is crosses
   r <- maximum_waves(Hs_hourly, Hs_max, dim(Hs_hourly)[[3]])
   
-  ## Yearly average
   names(r) <- substr(file_groups[i][[1]][1], 7, 10)
-  
   
   # Loop to store output raster in a raster stack
   if(i==1){
@@ -238,16 +237,17 @@ for(i in 1:length(file_groups)){
   } else{
     waves_stack <- stack(waves_stack, r)
   }
-  
-  
 }
 
+# Count how many times the threshold is crossed (just out of curiousity)
+waves_stack_sum <- sum(waves_stack, na.rm=TRUE)
+plot(waves_stack_sum)
 
-waves_stack_mean <- sum(waves_stack, na.rm=TRUE)
+# Keep a binary mask for the GIS project
+waves_stack_sum[waves_stack_sum>=1] <- 1
 
-waves_stack_mean[waves_stack_mean>=1] <- 1
-
-writeRaster(waves_stack_mean, filename="MCE/CMEMS_data/Thresholds/Hs/max_waves.tif", format="GTiff", overwrite=TRUE)
+# Save your file as a tif file for a map
+writeRaster(waves_stack_sum, filename="max_waves.tif", format="GTiff", overwrite=TRUE)
 
 
 
@@ -366,6 +366,7 @@ plot(testmsk)
 
 
 writeRaster(testmsk, filename="MCE/feasibility/feasibility_mask.tif", format="GTiff", overwrite=TRUE)
+
 
 
 
