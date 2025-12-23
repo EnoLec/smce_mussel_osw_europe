@@ -22,7 +22,7 @@ library(sf)
 library(ncdf4)
 library(terra)
 
-setwd("C:/Users/enora/OneDrive - hull.ac.uk/001_Enora_PhD/Data/Suitable_WF_GIS_study/MCE/CMEMS_data/")
+setwd("C:/Users/my/path/")
 
 
 # 1. Average sss 2019-2023 ----
@@ -82,5 +82,6 @@ for(i in 1:length(SSS_files)){
 
 sss_fuzzy <- stack(sss_fuzzy)     
 writeRaster(sss_fuzzy,"Thresholds/SSS/SSS_2019-2023_fuzzy.tif", overwrite=T)
+
 
 
