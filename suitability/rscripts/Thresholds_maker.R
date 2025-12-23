@@ -1,41 +1,52 @@
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#%%%%%% FEASIBILITY ANALYSIS %%%%%%%
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+# Here we combine CHL, SST, SSS and SPM suitability scores together
+# First, we are going to generate a suitability index of M. edulis growth for the whole of Europe (without feasibility mask applied), to allow a complete study of the region.
+# Then, we will aplpy the Feasiblity mask to identify the best areas.
+
 # Initialisation ####
-#library(dplyr)
 library(raster)
 library(sp)
 library(sf)
 library(ncdf4)
 library(terra)
 
-setwd("C:/Users/enora/OneDrive - hull.ac.uk/001_Enora_PhD/Data/Suitable_WF_GIS_study/MCE/CMEMS_data/")
-
+setwd("C:/Users/my/path/")
 
 # SMCE full Europe ----
+# Load the suitability score rasters for each factor
 sss_fuzzy <- raster("Thresholds/SSS/SSS_2019-2023_fuzzy.tif")
 sst_fuzzy <- raster("Thresholds/SST/SST_2019-2023_fuzzy.tif")
 chl_fuzzy <- raster("Thresholds/CHL/CHL_2019-2023_fuzzy.tif")
 spm_fuzzy <- raster("Thresholds/SPM/SPM_2019-2023_fuzzy.tif")
 
+# Check their resolution
 res(sss_fuzzy)
 res(sst_fuzzy)
 res(chl_fuzzy)
 res(spm_fuzzy)
 
-
+# Resample every layers on on the layer of your choice, here SSS 
 sst_fuzzy <- resample(sst_fuzzy, sss_fuzzy)
 chl_fuzzy <- resample(chl_fuzzy, sss_fuzzy)
 spm_fuzzy <- resample(spm_fuzzy, sss_fuzzy)
 
+# Compute the average suitablity score for each factor stack (until then we had one suitability score raster per year)
 sss <- mean(sss_fuzzy, na.rm=T)
 sst <- mean(sst_fuzzy, na.rm=T)
 chl <- mean(chl_fuzzy, na.rm=T)
 spm <- mean(spm_fuzzy, na.rm=T)
 
+# Stack the result
 SMCE_stack <- stack(sst, chl, sss, spm)
 
+# Cmpute the suitability index (SI)
 weights <- c(0.45,0.30,0.16,0.09)
 SMCE_europe <- calc(SMCE_stack, fun = function(x) sum(x * weights))
 
-writeRaster(SMCE_europe,"Thresholds/SMCE_full_europe_2019-2023.tif", overwrite=T)
+writeRaster(SMCE_europe,"SMCE_full_europe_2019-2023.tif", overwrite=T)
 
 
 # SMCE feasible Europe ----
@@ -104,3 +115,4 @@ writeRaster(SMCE_feasible_trend,"Thresholds/SMCE_feasible_europe_relative_trend.
 # 
 # writeRaster(stability,"Thresholds/stability_SSP.tif", overwrite=T)
 # 
+
